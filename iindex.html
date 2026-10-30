@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente BHS - Salgado Filho (POA)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        industrial: {
+                            dark: '#121824',
+                            card: '#1e293b',
+                            accent: '#3b82f6',
+                            warning: '#f59e0b',
+                            success: '#10b981',
+                            danger: '#ef4444'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .touch-target {
+            min-height: 64px;
+        }
+    </style>
+</head>
+<body class="bg-industrial-dark text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between">
+
+    <!-- CABEÇALHO -->
+    <header class="bg-industrial-card border-b border-slate-800 p-4 sticky top-0 z-50 shadow-md">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-lg font-bold tracking-wider text-blue-400">BHS POA - SUPORTE</h1>
+                <p class="text-xs text-slate-400">Salgado Filho | Manutenção de Campo</p>
+            </div>
+            <div id="mttr-timer" class="bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg text-sm font-mono text-amber-400">
+                MTTR: <span id="timer-display">00:00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="max-w-md w-full mx-auto p-4 flex-grow flex flex-col justify-center">
+
+        <!-- TELA 1: MENU DE SELEÇÃO DE EQUIPAMENTO -->
+        <div id="screen-home" class="space-y-4">
+            <div class="bg-blue-950/40 border border-blue-900/60 p-4 rounded-xl mb-4">
+                <p class="text-sm text-blue-200">🔍 Escaneie o QR Code no ativo ou selecione abaixo para iniciar o diagnóstico rápido:</p>
+            </div>
+
+            <button onclick="selectEquipment('vsu')" class="w-full bg-industrial-card hover:bg-slate-800 border-2 border-slate-700 hover:border-blue-500 p-4 rounded-xl text-left transition flex items-center justify-between touch-target shadow-lg">
+                <div>
+                    <span class="text-xs uppercase tracking-widest text-blue-400 font-semibold">Ativo 01</span>
+                    <h2 class="text-lg font-bold text-slate-100">VSU (Distribuidor Vertical)</h2>
+                </div>
+                <span class="text-2xl">⚡</span>
+            </button>
+
+            <button onclick="selectEquipment('diverter')" class="w-full bg-industrial-card hover:bg-slate-800 border-2 border-slate-700 hover:border-blue-500 p-4 rounded-xl text-left transition flex items-center justify-between touch-target shadow-lg">
+                <div>
+                    <span class="text-xs uppercase tracking-widest text-blue-400 font-semibold">Ativo 02</span>
+                    <h2 class="text-lg font-bold text-slate-100">Braço Desviador</h2>
+                </div>
+                <span class="text-2xl">🔀</span>
+            </button>
+
+            <button onclick="selectEquipment('m200')" class="w-full bg-industrial-card hover:bg-slate-800 border-2 border-slate-700 hover:border-blue-500 p-4 rounded-xl text-left transition flex items-center justify-between touch-target shadow-lg">
+                <div>
+                    <span class="text-xs uppercase tracking-widest text-blue-400 font-semibold">Ativo 03</span>
+                    <h2 class="text-lg font-bold text-slate-100">Transportador / M200</h2>
+                </div>
+                <span class="text-2xl">⚙️</span>
+            </button>
+        </div>
+
+        <!-- TELA 2: FLUXO DE DIAGNÓSTICO (DINÂMICO) -->
+        <div id="screen-diagnostic" class="hidden space-y-4">
+            <button onclick="goHome()" class="text-sm text-slate-400 hover:text-white flex items-center gap-1 mb-2">
+                ← Voltar aos Equipamentos
+            </button>
+
+            <div id="equipment-title-box" class="bg-industrial-card p-4 rounded-xl border border-slate-800">
+                <!-- Preenchido via JS -->
+            </div>
+
+            <div id="diagnostic-steps" class="space-y-3">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+
+        <!-- TELA 3: SUCESSO / RESOLUÇÃO -->
+        <div id="screen-success" class="hidden text-center space-y-6 py-8">
+            <div class="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center mx-auto text-4xl text-emerald-400">
+                ✓
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-emerald-400">Atendimento Concluído!</h2>
+                <p class="text-sm text-slate-400 mt-1">Tempo total registrado (MTTR): <span id="final-time" class="font-mono font-bold text-white">00:00</span></p>
+            </div>
+            <button onclick="goHome()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl touch-target shadow-lg transition">
+                Novo Atendimento
+            </button>
+        </div>
+
+    </main>
+
+    <!-- RODAPÉ -->
+    <footer class="text-center p-4 text-xs text-slate-500 border-t border-slate-800 bg-industrial-card/50">
+        BHS Operations &copy; 2026 - Aeroporto Salgado Filho (POA)
+    </footer>
+
+    <!-- LÓGICA JAVASCRIPT -->
+    <script>
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let currentEquipment = '';
+
+        const db = {
+            vsu: {
+                name: "VSU (Distribuidor Vertical)",
+                symptoms: [
+                    { title: "Mala travada no topo / bloqueio de esteira", action: "1. Remova a mala com cuidado e desobstrua o sensor.\n2. Execute o reset remoto no SCADA.\n3. Se persistir, acione o painel local." },
+                    { title: "Falha de acionamento do elevador vertical", action: "1. Tente o ciclo remoto via SCADA.\n2. Verifique se o disjuntor do quadro elétrico desarmou.\n3. Chame a manutenção elétrica se houver falha mecânica." }
+                ]
+            },
+            diverter: {
+                name: "Braço Desviador",
+                symptoms: [
+                    { title: "Mala presa embaixo do braço desviador", action: "1. Certifique-se da segurança e desenergização.\n2. Force manualmente a mala no sentido adequado com cuidado para desprender.\n3. Remova a bagagem da zona de bloqueio." },
+                    { title: "Falha de posição (Não abre/fecha por completo)", action: "1. Tente o reset online pelo supervisório SCADA.\n2. Vá até o painel e acione a chave seletora.\n3. Observe o LED no SCADA: 🟢 Verde (Ok) | 🟡 Amarelo (Fora de posição) | 🔴 Vermelho (Falha de sensor)." }
+                ]
+            },
+            m200: {
+                name: "Transportador de Correia (M200)",
+                symptoms: [
+                    { title: "Falha no Módulo M200 / Acionamento ou Contatora Colada", action: "1. Se o motor falhou internamente: Chame o técnico responsável.\n2. Se a contatora estiver colada (esteira não para): Efetue a substituição física do M200 ou da contatora." },
+                    { title: "Mala travada por excesso de peso ou extremidades presas", action: "1. Destrave a mala das extremidades e retire da frente do sensor.\n2. Acione a opção MANUAL no M200 para testar integridade.\n3. Efetue o reset no SCADA e libere a linha." }
+                ]
+            }
+        };
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            secondsElapsed = 0;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+            const secs = (secondsElapsed % 60).toString().padStart(2, '0');
+            document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+        }
+
+        function selectEquipment(key) {
+            currentEquipment = key;
+            const eq = db[key];
+            startTimer();
+
+            document.getElementById('screen-home').classList.add('hidden');
+            document.getElementById('screen-diagnostic').classList.remove('hidden');
+            document.getElementById('screen-success').classList.add('hidden');
+
+            document.getElementById('equipment-title-box').innerHTML = `
+                <span class="text-xs text-blue-400 uppercase font-semibold">Diagnóstico Ativo</span>
+                <h2 class="text-xl font-bold text-white mt-1">${eq.name}</h2>
+                <div class="mt-2 bg-amber-500/10 border border-amber-500/30 p-2 rounded text-xs text-amber-300">
+                    💡 <strong>1º Passo Obrigatório:</strong> Tente sempre o reset remoto via SCADA antes de se deslocar ao campo.
+                </div>
+            `;
+
+            let stepsHTML = `<p class="text-sm font-semibold text-slate-300 mt-2">Selecione o sintoma observado:</p>`;
+            eq.symptoms.forEach((sym, index) => {
+                stepsHTML += `
+                    <div class="bg-industrial-card border border-slate-700 hover:border-blue-500 p-4 rounded-xl space-y-2 transition">
+                        <h3 class="font-bold text-white text-base">${sym.title}</h3>
+                        <p class="text-xs text-slate-400 whitespace-pre-line bg-slate-900/50 p-3 rounded border border-slate-800">${sym.action}</p>
+                        <button onclick="finishProcess()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg touch-target text-sm transition mt-2">
+                            ✓ Problema Resolvido / Executado
+                        </button>
+                    </div>
+                `;
+            });
+
+            document.getElementById('diagnostic-steps').innerHTML = stepsHTML;
+        }
+
+        function finishProcess() {
+            clearInterval(timerInterval);
+            document.getElementById('screen-diagnostic').classList.add('hidden');
+            document.getElementById('screen-success').classList.remove('hidden');
+            document.getElementById('final-time').innerText = document.getElementById('timer-display').innerText;
+        }
+
+        function goHome() {
+            clearInterval(timerInterval);
+            document.getElementById('screen-home').classList.remove('hidden');
+            document.getElementById('screen-diagnostic').classList.add('hidden');
+            document.getElementById('screen-success').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
